@@ -1,0 +1,102 @@
+# @sidebar sensors
+
+# Forward declaration (full type lives in picoruby-mruby/sig/task.rbs).
+class Task end
+
+class BMI270
+  CONFIG_FILE: String
+
+  ACCEL_RANGE_2G: Integer
+  ACCEL_RANGE_4G: Integer
+  ACCEL_RANGE_8G: Integer
+  ACCEL_RANGE_16G: Integer
+
+  GYRO_RANGE_2000DPS: Integer
+  GYRO_RANGE_1000DPS: Integer
+  GYRO_RANGE_500DPS: Integer
+  GYRO_RANGE_250DPS: Integer
+  GYRO_RANGE_125DPS: Integer
+
+  I2C_ADDRESS: Integer
+  REG_CHIP_ID: Integer
+  REG_ACC_X_LSB: Integer
+  REG_GYR_X_LSB: Integer
+  REG_TEMPERATURE_LSB: Integer
+  REG_INTERNAL_STATUS: Integer
+  REG_ACC_CONF: Integer
+  REG_ACC_RANGE: Integer
+  REG_GYR_CONF: Integer
+  REG_GYR_RANGE: Integer
+  REG_INIT_CTRL: Integer
+  REG_INIT_ADDR_0: Integer
+  REG_INIT_ADDR_1: Integer
+  REG_INIT_DATA: Integer
+  REG_PWR_CONF: Integer
+  REG_PWR_CTRL: Integer
+  REG_CMD: Integer
+  CHIP_ID: Integer
+  CMD_SOFTRESET: Integer
+
+  ACCEL_SCALES: Hash[Integer, Float]
+  GYRO_SCALES: Hash[Integer, Float]
+
+  CONFIG_CHUNK_SIZE: Integer
+  DEFAULT_SAMPLER_INTERVAL_MS: Integer
+
+  type vector_hash = { x: Float, y: Float, z: Float }
+  type sensor_data = { accel: vector_hash, gyro: vector_hash, temp: Float }
+  type tilt_data = { pitch: Float, roll: Float }
+
+  @i2c: I2C
+  @accel_scale: Float
+  @gyro_scale: Float
+  @latest: sensor_data | nil
+  @latest_at_ms: Integer
+  @sampler_interval_ms: Integer
+  @sampler_task: Task | nil
+  @sampler_running: bool
+
+  def initialize: (I2C i2c_instance) -> void
+
+  # Existing API (MPU6886-compatible surface)
+  def acceleration: () -> vector_hash
+  def gyroscope: () -> vector_hash
+  def temperature: () -> Float
+  def accel_range=: (Integer range) -> void
+  def gyro_range=: (Integer range) -> void
+  def read_all: () -> sensor_data
+  def magnitude: () -> Float
+  def tilt_angles: () -> tilt_data
+  def motion_detected?: (?Float threshold) -> bool
+
+  # Atomic burst snapshot
+  def snapshot: () -> sensor_data
+
+  # Tick-driven sampler
+  def configure_sampling: (?interval_ms: Integer) -> void
+  def tick: (?Integer | nil now_ms) -> bool
+
+  # Background Task sampler
+  def start_sampling: (?interval_ms: Integer) -> Task
+  def stop_sampling: () -> void
+
+  # Cached accessors (shared by tick and background sampler)
+  def fresh?: () -> bool
+  def latest_snapshot: () -> (sensor_data | nil)
+  def latest_acceleration: () -> (vector_hash | nil)
+  def latest_gyroscope: () -> (vector_hash | nil)
+  def latest_temperature: () -> (Float | nil)
+
+  # Internals (called by Task body / time helper)
+  def _run_sampler_loop: () -> void
+  def _now_ms: () -> Integer
+
+  private
+
+  def init_sensor: () -> void
+  def load_config_file: () -> void
+  def wait_for_init: () -> void
+  def write_reg: (Integer reg, Integer data) -> void
+  def read_reg: (Integer reg, Integer length) -> Array[Integer]
+  def to_signed_16bit: (Integer value) -> Integer
+end
